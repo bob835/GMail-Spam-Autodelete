@@ -1,0 +1,240 @@
+function createTrigger() {
+  
+  var triggers = ScriptApp.getScriptTriggers();
+  
+  for(var i in triggers) {
+    ScriptApp.deleteTrigger(triggers[i]);
+  }
+    
+  ScriptApp.newTrigger('readGmail')
+  .timeBased()
+  .everyMinutes(10)
+  .create();   
+}
+
+
+function help() {
+  var html = HtmlService.createHtmlOutputFromFile('help')
+  .setTitle("Google Scripts Support")
+  .setWidth(400)
+  .setHeight(200);
+  var ss = SpreadsheetApp.getActive();
+  ss.show(html);
+}
+
+function onOpen() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var menu = [
+    {name: "Help and Support »",functionName: "help"},
+    null,
+    {name: "Initialize", functionName: "Initialize"},
+    {name: "Turn-on Filters", functionName: "Start"},
+    null,
+    {name: "Uninstall", functionName: "Uninstall"},
+    null
+  ];  
+  ss.addMenu("Gmail Filters", menu);
+}
+
+function Initialize() {  
+  createTrigger();
+  SpreadsheetApp.getActiveSpreadsheet().toast("Initialized. Please Turn-on Filters the Gmail Filters menu.");
+}
+
+function Start() {
+  createTrigger();  
+  SpreadsheetApp.getActiveSpreadsheet().toast("The script is now running. You may close this Google sheet.");
+}
+
+function Uninstall() {
+  
+  var triggers = ScriptApp.getScriptTriggers();
+  
+  for(var i in triggers) {
+    ScriptApp.deleteTrigger(triggers[i]);
+  }  
+  
+    SpreadsheetApp.getActiveSpreadsheet().toast("Your Gmail filters are no longer active. For help, visit ctrlq.org or write at amit@labnol.org");
+
+  
+}
+
+function applyRules(rules, thread) {
+  for (var i=0; i<rules.length; i++) {
+    switch (parseInt(rules[i][0])) {
+      case 0 : rule0(thread, rules[i]); break;
+      case 1 : rule1(thread, rules[i]); break;
+      case 2 : rule2(thread, rules[i]); break;
+      case 3 : rule3(thread, rules[i]); break;
+      case 4 : rule4(thread, rules[i]); break;
+      case 5 : rule5(thread, rules[i]); break;
+      case 6 : rule6(thread, rules[i]); break;
+      case 7 : rule7(thread, rules[i]); break;
+      case 8 : rule8(thread, rules[i]); break;
+      case 9 : rule9(thread, rules[i]); break;
+    }
+  }
+}
+
+function readRules() {
+  var rules = [];
+  var rows = SpreadsheetApp.getActiveSpreadsheet().getDataRange().getValues();  
+  for (var i=1; i<rows.length; i++) {
+    if (rows[i][1].toString().toLowerCase() == "on") {
+      rules.push([rows[i][0].substr(2,1), rows[i][3], rows[i][5]]);
+    }
+  }
+  return rules;
+}
+
+function isProcessed(msgs) {
+  
+  var key = "labnol filters";
+  var props = PropertiesService.getScriptProperties();  
+  var when = msgs[0].getDate().getTime();  
+  var last = props.getProperty(key) ? parseInt(props.getProperty(key)) : 0;
+  props.setProperty(key, when.toString());    
+  if ( (msgs.length == 1) && (parseInt(when) >= parseInt(last)) ) {
+    return false;
+  } else {
+    return true;
+  }
+}
+
+function readGmail() {  
+  try {    
+    var threads = GmailApp.search("in:spam is:unread", 0, 20);
+    if (threads.length > 0) {
+      var rules = readRules();
+      for (var t=threads.length-1; t>=0; t--) {
+        var messages = threads[t].getMessages();
+        if (!isProcessed(messages)) {
+          Logger.log("Processing " + messages[0].getDate() + " :: " + messages[0].getSubject());
+          applyRules(rules, threads[t]);
+        } else {
+          Logger.log("Skipping " + messages[0].getDate() + " :: " +  messages[0].getSubject());
+        }
+      }
+    }
+  } catch (e) {
+    Logger.log(e.toString());
+  }
+}
+
+function getGmailLabel(name) {
+  
+  var label = GmailApp.getUserLabelByName(name);
+  
+  if (!label) {
+    label = GmailApp.createLabel(name);
+  }
+  
+  return label;
+  
+}
+
+
+function rule0(thread, rule) {
+  var msg = thread.getMessages()[0];
+  var body = stripTags([msg.getSubject(), msg.getBody()].join());
+  var regex = new RegExp(rule[2], "g");  
+  if (body.match(regex)) {
+    Logger.log("Applying label " + rule[1] + " to " + msg.getSubject());
+    thread.addLabel(getGmailLabel(rule[1]));
+  }
+}
+
+function rule9(thread, rule) {
+  var msg = thread.getMessages()[0];
+  var body = stripTags([msg.getSubject(), msg.getBody()].join());
+  if (body.match(rule[2])) {
+    Logger.log("Applying label " + rule[1] + " to " + msg.getSubject());
+    thread.addLabel(getGmailLabel(rule[1]));
+  }
+}
+
+function rule1(thread, rule) {
+  var msg = thread.getMessages()[0];
+  var to = [msg.getTo(), msg.getCc()].join();
+  if (to.match(/[a-zA-Z0-9_\.\+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-\.]+/g).length >= rule[2]) {
+    Logger.log("Applying label " + rule[1] + " to " + msg.getSubject());
+    thread.addLabel(getGmailLabel(rule[1]));
+  }
+}
+
+
+function rule2(thread, rule) {
+  var msg = thread.getMessages()[0];
+  var subject = msg.getSubject();
+  if (subject.match(/\s+/g).length >= rule[2]) {
+    Logger.log("Applying label " + rule[1] + " to " + msg.getSubject());
+    thread.addLabel(getGmailLabel(rule[1]));
+  }
+}
+
+
+function rule3(thread, rule) {
+  var msg = thread.getMessages()[0]; 
+  var body = stripTags(msg.getBody());
+  if (body.match(/\s+/g).length >= rule[2]) {
+    Logger.log("Applying label " + rule[1] + " to " + msg.getSubject());
+    thread.addLabel(getGmailLabel(rule[1]));
+  }
+}
+
+
+function rule4(thread, rule) {
+  var msg = thread.getMessages()[0];
+  var body = stripTags(msg.getBody());
+  if (body.match(/\s+/g).length < rule[2]) {
+    Logger.log("Applying label " + rule[1] + " to " + msg.getSubject());
+    thread.addLabel(getGmailLabel(rule[1]));
+  }
+}
+
+function rule5(thread, rule) {
+  var msg = thread.getMessages()[0];
+  var att = msg.getAttachments();
+  if (att.length > rule[2]) {
+    Logger.log("Applying label " + rule[1] + " to " + msg.getSubject());
+    thread.addLabel(getGmailLabel(rule[1]));
+  }
+}
+
+
+function rule6(thread, rule) {
+  var msg = thread.getMessages()[0];
+  var att = msg.getAttachments();
+  var size = 0;
+  for (var i in att) {
+    size += (att[i].getSize())/(1024*1024);
+  }
+  if (att.length > rule[2]) {
+    Logger.log("Applying label " + rule[1] + " to " + msg.getSubject());
+    thread.addLabel(getGmailLabel(rule[1]));
+  }
+}
+
+function rule7(thread, rule) {
+  var msg = thread.getMessages()[0];
+  var body = msg.getBody();
+  if (body.match(/\https?:\/\//g).length > rule[2]) {
+    Logger.log("Applying label " + rule[1] + " to " + msg.getSubject());
+    thread.addLabel(getGmailLabel(rule[1]));
+  }
+}
+
+
+function rule8(thread, rule) {
+  var msg = thread.getMessages()[0];
+  var body = msg.getBody();
+  if ( ( body.match(/<img[^>]+>/g) || [] ).length > rule[2]) {
+    Logger.log("Applying label " + rule[1] + " to " + msg.getSubject());
+    thread.addLabel(getGmailLabel(rule[1]));
+  }
+}
+
+function stripTags(body) {
+  var regex = /(<([^>]+)>)/ig;
+  return body.replace(regex,"");
+}
